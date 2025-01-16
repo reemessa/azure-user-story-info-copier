@@ -84,9 +84,6 @@ This extension requires the following permissions:
 3. Make your changes
 4. Submit a pull request
 
-## License
-
-[Your chosen license]
 
 ## Support
 

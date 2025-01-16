@@ -1,0 +1,26 @@
+{
+  "name": "Azure Story Extractor",
+  "description": "Extract user story information from Azure DevOps",
+  "version": "1.0",
+  "manifest_version": 3,
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "*://*.visualstudio.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "images/icon.png",
+      "48": "images/icon.png",
+      "128": "images/icon.png"
+    }
+  },
+  "content_scripts": [{
+    "matches": ["*://*.visualstudio.com/*"],
+    "js": ["content.js"]
+  }]
+}

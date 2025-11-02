@@ -3,85 +3,135 @@ function getVisibleText(element) {
   return element?.textContent?.trim() || null;
 }
 
+function extractStoryNumber() {
+  const storySelectors = [
+    'a.bolt-link',
+    '.body-xl',
+    '[aria-label="ID Field"]',
+    '.work-item-form-id'
+  ];
+
+  for (const selector of storySelectors) {
+    const element = document.querySelector(selector);
+    if (element) {
+      const match = getVisibleText(element)?.match(/\d+/);
+      if (match) {
+        console.log(`Found story number "${match[0]}" using selector "${selector}"`);
+        return match[0];
+      }
+    }
+  }
+  return null;
+}
+
+function extractStoryTitle() {
+  const titleSelectors = [
+    'input.bolt-textfield-input[aria-label="Title field"]',
+    'input[aria-label="Title field"]',
+    '.work-item-form-title input',
+    'input[placeholder="Enter title"]'
+  ];
+
+  for (const selector of titleSelectors) {
+    const element = document.querySelector(selector);
+    if (element && element.value) {
+      console.log(`Found story title "${element.value.trim()}" using selector "${selector}"`);
+      return element.value.trim();
+    }
+  }
+  return null;
+}
+
+function extractDescription() {
+  const descriptionSelectors = [
+    '[aria-label="Description"] .ql-editor',
+    '[aria-label="Description field"] .ql-editor',
+    '.work-item-form-description .ql-editor',
+    'div[role="textbox"][aria-label*="Description"]',
+    '.rich-editor-container .ql-editor'
+  ];
+
+  for (const selector of descriptionSelectors) {
+    const element = document.querySelector(selector);
+    if (element) {
+      const text = element.innerText?.trim() || element.textContent?.trim();
+      if (text) {
+        console.log(`Found description using selector "${selector}"`);
+        return text;
+      }
+    }
+  }
+  return 'No description found';
+}
+
+function extractAcceptanceCriteria() {
+  // Try dedicated Acceptance Criteria field first
+  const criteriaSelectors = [
+    '[aria-label="Acceptance Criteria"] .ql-editor',
+    '[aria-label="Acceptance Criteria field"] .ql-editor',
+    '.work-item-form-acceptance-criteria .ql-editor',
+    'div[role="textbox"][aria-label*="Acceptance Criteria"]'
+  ];
+
+  for (const selector of criteriaSelectors) {
+    const element = document.querySelector(selector);
+    if (element) {
+      const text = element.innerText?.trim() || element.textContent?.trim();
+      if (text) {
+        console.log(`Found acceptance criteria using selector "${selector}"`);
+        return text;
+      }
+    }
+  }
+
+  // Fallback: Search for "Acceptance Criteria" in description
+  const description = extractDescription();
+  const criteriaMatch = description.match(/(?:Acceptance Criteria|AC):?\s*\n?([\s\S]*?)(?:\n\n|$)/i);
+  if (criteriaMatch && criteriaMatch[1]) {
+    console.log('Found acceptance criteria in description');
+    return criteriaMatch[1].trim();
+  }
+
+  return 'No acceptance criteria found';
+}
+
+function extractScreenshots() {
+  const screenshots = [];
+
+  // Look for images in attachments, rich editors, and work item content
+  const imageSelectors = [
+    'img[src*="attachments"]',
+    '.ql-editor img',
+    '.work-item-form img[src^="http"]',
+    '.rich-editor-container img',
+    'img[src*="visualstudio.com"]'
+  ];
+
+  const seenUrls = new Set();
+
+  for (const selector of imageSelectors) {
+    const images = document.querySelectorAll(selector);
+    images.forEach(img => {
+      const src = img.src;
+      if (src && !seenUrls.has(src) && src.startsWith('http')) {
+        screenshots.push(src);
+        seenUrls.add(src);
+      }
+    });
+  }
+
+  console.log(`Found ${screenshots.length} screenshot(s)`);
+  return screenshots;
+}
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "extractStory") {
     (async () => {
       try {
-        console.log('Starting extraction...');
-        
-        // Log all potential story number locations
-        const allLinks = document.querySelectorAll('a.bolt-link');
-        console.log('Found links:', Array.from(allLinks).map(link => ({
-          text: link.textContent,
-          href: link.href
-        })));
+        console.log('Starting main info extraction...');
 
-        // Log all potential title field locations
-        const allInputs = document.querySelectorAll('input.bolt-textfield-input');
-        console.log('Found inputs:', Array.from(allInputs).map(input => ({
-          ariaLabel: input.getAttribute('aria-label'),
-          value: input.value,
-          placeholder: input.placeholder
-        })));
-
-        // Try multiple selectors for story number
-        let storyNumber = null;
-        const storySelectors = [
-          'a.bolt-link',                    // Try bolt-link class
-          '.body-xl',                       // Try body-xl class
-          '[aria-label="ID Field"]',        // Try aria-label
-          '.work-item-form-id'              // Try work-item-form-id class
-        ];
-
-        for (const selector of storySelectors) {
-          const element = document.querySelector(selector);
-          if (element) {
-            console.log(`Found element with selector "${selector}":`, {
-              element,
-              text: getVisibleText(element)
-            });
-            
-            const match = getVisibleText(element)?.match(/\d+/);
-            if (match) {
-              storyNumber = match[0];
-              console.log(`Found story number "${storyNumber}" using selector "${selector}"`);
-              break;
-            }
-          }
-        }
-
-        // Try multiple selectors for title
-        let storyTitle = null;
-        const titleSelectors = [
-          'input.bolt-textfield-input[aria-label="Title field"]',
-          'input[aria-label="Title field"]',
-          '.work-item-form-title input',
-          'input[placeholder="Enter title"]'
-        ];
-
-        for (const selector of titleSelectors) {
-          const element = document.querySelector(selector);
-          if (element) {
-            console.log(`Found element with selector "${selector}":`, {
-              element,
-              value: element.value
-            });
-            
-            if (element.value) {
-              storyTitle = element.value.trim();
-              console.log(`Found story title "${storyTitle}" using selector "${selector}"`);
-              break;
-            }
-          }
-        }
-
-        // Log final results
-        console.log('Extraction results:', {
-          storyNumber,
-          storyTitle,
-          documentTitle: document.title,
-          url: window.location.href
-        });
+        const storyNumber = extractStoryNumber();
+        const storyTitle = extractStoryTitle();
 
         if (!storyNumber || !storyTitle) {
           throw new Error(`Incomplete information found: ${JSON.stringify({
@@ -93,11 +143,64 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const output = `${storyNumber} - ${storyTitle}`;
         console.log('Final output:', output);
         sendResponse({ success: true, data: output });
-        
+
       } catch (error) {
         console.error('Extraction error:', error);
-        sendResponse({ 
-          success: false, 
+        sendResponse({
+          success: false,
+          error: error.message,
+          details: {
+            url: window.location.href,
+            title: document.title
+          }
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (request.action === "extractFullStory") {
+    (async () => {
+      try {
+        console.log('Starting full info extraction...');
+
+        const storyNumber = extractStoryNumber();
+        const storyTitle = extractStoryTitle();
+        const description = extractDescription();
+        const acceptanceCriteria = extractAcceptanceCriteria();
+        const screenshots = extractScreenshots();
+
+        if (!storyNumber || !storyTitle) {
+          throw new Error(`Incomplete information found: ${JSON.stringify({
+            storyNumber: storyNumber || 'not found',
+            storyTitle: storyTitle || 'not found'
+          })}`);
+        }
+
+        // Format as markdown
+        const output = `# Story ${storyNumber}: ${storyTitle}
+
+## Description
+${description}
+
+## Acceptance Criteria
+${acceptanceCriteria}
+
+## Screenshots
+${screenshots.length > 0 ? `${screenshots.length} screenshot(s) downloaded to ~/Pictures/Screenshots/` : 'No screenshots found'}`;
+
+        console.log('Full extraction complete');
+        sendResponse({
+          success: true,
+          data: output,
+          storyNumber: storyNumber,
+          screenshots: screenshots
+        });
+
+      } catch (error) {
+        console.error('Extraction error:', error);
+        sendResponse({
+          success: false,
           error: error.message,
           details: {
             url: window.location.href,

@@ -95,6 +95,72 @@ function extractAcceptanceCriteria() {
   return 'No acceptance criteria found';
 }
 
+function extractComments() {
+  const comments = [];
+
+  // Look for comment items in the discussion section
+  const commentSelectors = [
+    '.comment-item',
+    '[class*="comment-item"]',
+    '.discussion-comment',
+    '[class*="discussion-comment"]'
+  ];
+
+  let commentElements = [];
+  for (const selector of commentSelectors) {
+    const elements = document.querySelectorAll(selector);
+    if (elements.length > 0) {
+      commentElements = Array.from(elements);
+      console.log(`Found ${commentElements.length} comments using selector "${selector}"`);
+      break;
+    }
+  }
+
+  commentElements.forEach(commentEl => {
+    // Try to find author name
+    let author = 'Unknown';
+    const authorSelectors = [
+      '.comment-author',
+      '.identity-picker-resolved-name',
+      '[class*="comment-header"] a',
+      '[class*="comment-author"]',
+      '.author-name'
+    ];
+
+    for (const selector of authorSelectors) {
+      const authorEl = commentEl.querySelector(selector);
+      if (authorEl) {
+        author = getVisibleText(authorEl);
+        if (author) break;
+      }
+    }
+
+    // Try to find comment content
+    let content = '';
+    const contentSelectors = [
+      '.comment-content',
+      '.markdown-discussion-comment',
+      '[class*="comment-content"]',
+      '[class*="discussion-comment-text"]'
+    ];
+
+    for (const selector of contentSelectors) {
+      const contentEl = commentEl.querySelector(selector);
+      if (contentEl) {
+        content = contentEl.innerText?.trim() || contentEl.textContent?.trim();
+        if (content) break;
+      }
+    }
+
+    if (author && content) {
+      comments.push({ author, content });
+    }
+  });
+
+  console.log(`Found ${comments.length} comment(s)`);
+  return comments;
+}
+
 function extractScreenshots() {
   const screenshots = [];
 
@@ -187,12 +253,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const description = extractDescription();
         const acceptanceCriteria = extractAcceptanceCriteria();
         const screenshots = extractScreenshots();
+        const comments = extractComments();
 
         if (!storyNumber || !storyTitle) {
           throw new Error(`Incomplete information found: ${JSON.stringify({
             storyNumber: storyNumber || 'not found',
             storyTitle: storyTitle || 'not found'
           })}`);
+        }
+
+        // Format comments
+        let commentsSection = '';
+        if (comments.length > 0) {
+          commentsSection = comments.map(c => `${c.author}: ${c.content}`).join('\n\n');
+        } else {
+          commentsSection = 'No comments found';
         }
 
         // Format as markdown
@@ -203,6 +278,9 @@ ${description}
 
 ## Acceptance Criteria
 ${acceptanceCriteria}
+
+## Comments
+${commentsSection}
 
 ## Screenshots
 ${screenshots.length > 0 ? `${screenshots.length} screenshot(s) downloaded to ~/Pictures/Screenshots/` : 'No screenshots found'}`;

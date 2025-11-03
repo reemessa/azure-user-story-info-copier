@@ -98,22 +98,40 @@ function extractAcceptanceCriteria() {
 function extractScreenshots() {
   const screenshots = [];
 
-  // Look for images in attachments, rich editors, and work item content
+  // Look for images only in work item content areas (not UI/header elements)
   const imageSelectors = [
     'img[src*="attachments"]',
     '.ql-editor img',
-    '.work-item-form img[src^="http"]',
     '.rich-editor-container img',
-    'img[src*="visualstudio.com"]'
+    '[aria-label="Description"] img',
+    '[aria-label="Acceptance Criteria"] img'
   ];
 
   const seenUrls = new Set();
+
+  // Patterns to exclude (profile pictures, avatars, UI elements)
+  const excludePatterns = [
+    /avatar/i,
+    /profile/i,
+    /MemberAvatars/i,
+    /GraphProfile/i,
+    /identityImage/i,
+    /profileImage/i,
+    /_apis.*avatars/i
+  ];
 
   for (const selector of imageSelectors) {
     const images = document.querySelectorAll(selector);
     images.forEach(img => {
       const src = img.src;
-      if (src && !seenUrls.has(src) && src.startsWith('http')) {
+
+      // Check if image should be excluded
+      const shouldExclude = excludePatterns.some(pattern => pattern.test(src));
+
+      // Also check image size - profile pics are typically small
+      const isSmall = img.width < 100 && img.height < 100;
+
+      if (src && !seenUrls.has(src) && src.startsWith('http') && !shouldExclude && !isSmall) {
         screenshots.push(src);
         seenUrls.add(src);
       }

@@ -95,6 +95,41 @@ function extractAcceptanceCriteria() {
   return 'No acceptance criteria found';
 }
 
+function extractReproSteps() {
+  // Try dedicated Repro Steps field first
+  const reproSelectors = [
+    '[aria-label="Repro Steps"] .ql-editor',
+    '[aria-label="Repro Steps field"] .ql-editor',
+    '[aria-label="Steps to Reproduce"] .ql-editor',
+    '[aria-label="Steps to Reproduce field"] .ql-editor',
+    'div[role="textbox"][aria-label*="Repro Steps"]',
+    'div[role="textbox"][aria-label*="Steps to Reproduce"]',
+    '[aria-label="System Info"] .ql-editor',
+    '[aria-label="System Info field"] .ql-editor'
+  ];
+
+  for (const selector of reproSelectors) {
+    const element = document.querySelector(selector);
+    if (element) {
+      const text = element.innerText?.trim() || element.textContent?.trim();
+      if (text) {
+        console.log(`Found repro steps using selector "${selector}"`);
+        return text;
+      }
+    }
+  }
+
+  // Fallback: Search for "Repro Steps" or "Steps to Reproduce" in description
+  const description = extractDescription();
+  const reproMatch = description.match(/(?:Repro Steps|Steps to Reproduce|Reproduction Steps):?\s*\n?([\s\S]*?)(?:\n\n|$)/i);
+  if (reproMatch && reproMatch[1]) {
+    console.log('Found repro steps in description');
+    return reproMatch[1].trim();
+  }
+
+  return 'No repro steps found';
+}
+
 function extractComments() {
   const comments = [];
 
@@ -252,6 +287,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const storyTitle = extractStoryTitle();
         const description = extractDescription();
         const acceptanceCriteria = extractAcceptanceCriteria();
+        const reproSteps = extractReproSteps();
         const screenshots = extractScreenshots();
         const comments = extractComments();
 
@@ -278,6 +314,9 @@ ${description}
 
 ## Acceptance Criteria
 ${acceptanceCriteria}
+
+## Repro Steps
+${reproSteps}
 
 ## Comments
 ${commentsSection}
